@@ -4,7 +4,6 @@ const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || "";
 
 app.use(express.json({ limit: "100kb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -27,46 +26,84 @@ const countries = [
   { code: "CA", name: "Canada" }
 ];
 
-// CACHE
 const cache = new Map();
+const inFlight = new Map();
 
-function getCached(key) {
-  const item = cache.get(key);
-  if (!item || Date.now() > item.expires) {
-    cache.delete(key);
-    return null;
-  }
-  return item.data;
-}
-
-function setCached(key, data, minutes) {
-  cache.set(key, {
-    data,
-    expires: Date.now() + minutes * 60 * 1000
-  });
-}
-
-// COUNTRY
 function getCountry(code) {
   return countries.find(
-    country => country.code === String(code || "RW").toUpperCase()
+    item => item.code === String(code || "RW").toUpperCase()
   ) || countries[0];
 }
 
-// HTTP JSON
-async function fetchJSON(url) {
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(20000),
-    headers: {
-      "User-Agent": "GlobalTrendRadar/2.1"
-    }
-  });
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-  const body = await response.text();
+function getCached(key) {
+  const item = cache.get(key);
+  if (!item) return null;
 
-  if (!response.ok) {
-    throw new Error(`External service returned ${response.status}`);
+  if (Date.now() > item.staleUntil) {
+    cache.delete(key);
+    return null;
   }
+
+  return {
+    data: item.data,
+    fresh: Date.now() < item.expiresAt
+  };
+}
+
+function saveCache(key, data, freshMinutes = 10, staleHours = 24) {
+  cache.set(key, {
+    data,
+    expiresAt: Date.now() + freshMinutes * 60 * 1000,
+    staleUntil: Date.now() + staleHours * 60 * 60 * 1000
+  });
+}
+
+async function fetchText(url, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "GLOBAL-TREND-RADAR/2.2",
+        "Accept": "application/json, application/rss+xml, application/xml, text/xml"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`External service returned ${response.status}`);
+    }
+
+    return await response.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchTextWithRetry(url, timeoutMs = 12000) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      return await fetchText(url, timeoutMs);
+    } catch (error) {
+      lastError = error;
+      console.error(`Fetch attempt ${attempt} failed:`, error.message);
+
+      if (attempt < 2) await wait(700);
+    }
+  }
+
+  throw lastError;
+}
+
+async function fetchJSON(url, timeoutMs = 12000) {
+  const body = await fetchTextWithRetry(url, timeoutMs);
 
   try {
     return JSON.parse(body);
@@ -75,76 +112,85 @@ async function fetchJSON(url) {
   }
 }
 
-// RSS
-async function fetchRSS(url) {
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(15000),
-    headers: {
-      "User-Agent": "GlobalTrendRadar/2.1",
-      "Accept": "application/rss+xml, application/xml, text/xml"
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`RSS service returned ${response.status}`);
-  }
-
-  return response.text();
-}
-
-function cleanXML(value) {
-  return String(value || "")
+function decodeXml(value = "") {
+  return String(value)
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/<[^>]*>/g, "")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&#39;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) =>
-      String.fromCodePoint(Number(n))
+    .replace(/&#x27;/gi, "'")
+    .replace(/&#(\d+);/g, (_, code) =>
+      String.fromCodePoint(Number(code))
     )
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) =>
-      String.fromCodePoint(parseInt(n, 16))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
+      String.fromCodePoint(parseInt(code, 16))
     )
     .trim();
 }
 
-function getXMLTag(block, tag) {
+function getTag(item, tag) {
   const regex = new RegExp(
-    `<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`,
+    `<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`,
     "i"
   );
-  const match = block.match(regex);
-  return match ? cleanXML(match[1]) : "";
+
+  const match = item.match(regex);
+  return match ? decodeXml(match[1]) : "";
 }
 
-function parseRSS(xml, countryName) {
-  const items = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
+function parseGoogleNews(xml, country) {
+  const items = xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi) || [];
 
-  return items.map(item => ({
-    title: getXMLTag(item, "title") || "Untitled news",
-    url: getXMLTag(item, "link"),
-    source: getXMLTag(item, "source") || "Google News RSS",
-    publishedAt: getXMLTag(item, "pubDate") || null,
-    image: "",
-    language: "",
-    country: countryName
-  })).filter(article => article.title && article.url);
+  return items.slice(0, 25).map(item => {
+    const title = getTag(item, "title");
+    const link = getTag(item, "link");
+    const pubDate = getTag(item, "pubDate");
+    const source = getTag(item, "source");
+
+    return {
+      title: title || "Untitled news",
+      url: link,
+      source: source || "Google News",
+      publishedAt: pubDate || null,
+      image: "",
+      language: "",
+      country: country.name
+    };
+  }).filter(item => item.title && item.url);
+}
+
+// GOOGLE NEWS RSS
+async function getGoogleNews(country) {
+  const url = new URL("https://news.google.com/rss/search");
+  url.searchParams.set("q", country.name);
+  url.searchParams.set("hl", "en");
+  url.searchParams.set("gl", country.code);
+  url.searchParams.set("ceid", `${country.code}:en`);
+
+  const xml = await fetchTextWithRetry(url.toString(), 12000);
+  const articles = parseGoogleNews(xml, country);
+
+  if (!articles.length) {
+    throw new Error("Google News RSS returned no articles.");
+  }
+
+  return articles;
 }
 
 // GDELT REQUEST QUEUE
 let gdeltQueue = Promise.resolve();
 let lastGdeltRequestAt = 0;
-let gdeltCooldownUntil = 0;
-
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+let gdeltBlockedUntil = 0;
 
 function queuedGdeltRequest(url) {
   const task = gdeltQueue.then(async () => {
+    if (Date.now() < gdeltBlockedUntil) {
+      throw new Error("GDELT is temporarily rate-limited.");
+    }
+
     const elapsed = Date.now() - lastGdeltRequestAt;
     const remaining = 5200 - elapsed;
 
@@ -152,18 +198,29 @@ function queuedGdeltRequest(url) {
 
     lastGdeltRequestAt = Date.now();
 
-    return fetchJSON(url);
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(12000),
+      headers: { "User-Agent": "GLOBAL-TREND-RADAR/2.2" }
+    });
+
+    if (response.status === 429) {
+      gdeltBlockedUntil = Date.now() + 10 * 60 * 1000;
+      throw new Error("GDELT rate limit: retry after 10 minutes.");
+    }
+
+    if (!response.ok) {
+      throw new Error(`GDELT returned ${response.status}`);
+    }
+
+    return response.json();
   });
 
   gdeltQueue = task.catch(() => {});
   return task;
 }
 
-async function getGdeltArticles(country) {
-  const url = new URL(
-    "https://api.gdeltproject.org/api/v2/doc/doc"
-  );
-
+async function getGdeltNews(country) {
+  const url = new URL("https://api.gdeltproject.org/api/v2/doc/doc");
   url.searchParams.set("query", country.name);
   url.searchParams.set("mode", "ArtList");
   url.searchParams.set("format", "json");
@@ -174,7 +231,7 @@ async function getGdeltArticles(country) {
   const data = await queuedGdeltRequest(url.toString());
 
   if (!Array.isArray(data.articles)) {
-    throw new Error("GDELT returned an invalid articles list.");
+    throw new Error("GDELT returned no valid articles.");
   }
 
   return data.articles.map(article => ({
@@ -188,65 +245,32 @@ async function getGdeltArticles(country) {
   })).filter(article => article.url);
 }
 
-async function getRSSArticles(country) {
-  const url = new URL("https://news.google.com/rss/search");
-
-  url.searchParams.set("q", `${country.name} when:7d`);
-  url.searchParams.set("hl", "en");
-  url.searchParams.set("gl", country.code);
-  url.searchParams.set("ceid", `${country.code}:en`);
-
-  const xml = await fetchRSS(url.toString());
-  const articles = parseRSS(xml, country.name);
-
-  if (!articles.length) {
-    throw new Error("RSS returned no news articles.");
-  }
-
-  return articles;
-}
-
 // SHARED NEWS CACHE
-const newsCache = new Map();
-const newsInFlight = new Map();
+async function getNewsData(country) {
+  const key = `news-${country.code}`;
+  const saved = getCached(key);
 
-async function getNewsArticles(country) {
-  const key = country.code;
-  const now = Date.now();
-  const saved = newsCache.get(key);
-
-  if (saved && now < saved.expiresAt) {
-    return {
-      ...saved.data,
-      cached: true
-    };
+  if (saved && saved.fresh) {
+    return { ...saved.data, cached: true };
   }
 
-  if (newsInFlight.has(key)) {
-    return newsInFlight.get(key);
+  if (inFlight.has(key)) {
+    return inFlight.get(key);
   }
 
   const request = (async () => {
     try {
       let articles;
-      let provider;
+      let source;
 
-      if (Date.now() >= gdeltCooldownUntil) {
-        try {
-          articles = await getGdeltArticles(country);
-          provider = "GDELT";
-        } catch (error) {
-          console.error("GDELT error:", error.message);
+      try {
+        articles = await getGoogleNews(country);
+        source = "Google News RSS";
+      } catch (rssError) {
+        console.error("Google News RSS error:", rssError.message);
 
-          if (error.message.includes("429")) {
-            gdeltCooldownUntil = Date.now() + 10 * 60 * 1000;
-          }
-        }
-      }
-
-      if (!articles || !articles.length) {
-        articles = await getRSSArticles(country);
-        provider = "Google News RSS";
+        articles = await getGdeltNews(country);
+        source = "GDELT";
       }
 
       const result = {
@@ -254,25 +278,19 @@ async function getNewsArticles(country) {
         updatedAt: new Date().toISOString(),
         total: articles.length,
         articles,
-        provider,
+        source,
         cached: false,
         stale: false
       };
 
-      newsCache.set(key, {
-        data: result,
-        expiresAt: Date.now() + 5 * 60 * 1000,
-        staleUntil: Date.now() + 60 * 60 * 1000
-      });
-
+      saveCache(key, result, 10, 24);
       return result;
-
     } catch (error) {
-      console.error("News sources error:", error.message);
+      console.error("News services error:", error.message);
 
-      const old = newsCache.get(key);
+      const old = getCached(key);
 
-      if (old && Date.now() < old.staleUntil) {
+      if (old) {
         return {
           ...old.data,
           cached: true,
@@ -281,23 +299,115 @@ async function getNewsArticles(country) {
       }
 
       throw error;
-
     } finally {
-      newsInFlight.delete(key);
+      inFlight.delete(key);
     }
   })();
 
-  newsInFlight.set(key, request);
+  inFlight.set(key, request);
   return request;
 }
 
-// HEALTH
+// APPLE MUSIC RSS
+async function getAppleMusic(country) {
+  const key = `music-${country.code}`;
+  const saved = getCached(key);
+
+  if (saved && saved.fresh) {
+    return {
+      ...saved.data,
+      cached: true
+    };
+  }
+
+  if (inFlight.has(key)) {
+    return inFlight.get(key);
+  }
+
+  const request = (async () => {
+    try {
+      const url =
+        `https://rss.marketingtools.apple.com/api/v2/` +
+        `${country.code.toLowerCase()}/music/most-played/25/songs.json`;
+
+      const data = await fetchJSON(url, 12000);
+      const feed = data.feed || {};
+      const results = Array.isArray(feed.results) ? feed.results : [];
+
+      if (!results.length) {
+        throw new Error("Apple Music returned no songs for this country.");
+      }
+
+      const songs = results.map((song, index) => ({
+        rank: index + 1,
+        id: song.id || "",
+        title: song.name || song.title || "Unknown song",
+        artist: song.artistName || "Unknown artist",
+        album: song.collectionName || "",
+        artwork: song.artworkUrl100 || "",
+        url: song.url || "",
+        releaseDate: song.releaseDate || null,
+        genres: Array.isArray(song.genres)
+          ? song.genres.map(genre => genre.name).filter(Boolean)
+          : []
+      }));
+
+      const videos = songs.map(song => ({
+        videoId: song.id,
+        title: song.title,
+        channelTitle: song.artist,
+        thumbnail: song.artwork,
+        publishedAt: song.releaseDate,
+        views: null,
+        url: song.url,
+        rank: song.rank
+      }));
+
+      const result = {
+        country: country.name,
+        configured: true,
+        source: "Apple Music RSS",
+        updatedAt: new Date().toISOString(),
+        total: songs.length,
+        songs,
+        videos,
+        cached: false,
+        stale: false
+      };
+
+      saveCache(key, result, 30, 24);
+      return result;
+    } catch (error) {
+      console.error("Apple Music error:", error.message);
+
+      const old = getCached(key);
+
+      if (old) {
+        return {
+          ...old.data,
+          cached: true,
+          stale: true,
+          warning: "Showing previously saved music data."
+        };
+      }
+
+      throw error;
+    } finally {
+      inFlight.delete(key);
+    }
+  })();
+
+  inFlight.set(key, request);
+  return request;
+}
+
+// HEALTH CHECK
 app.get("/api/health", (req, res) => {
   res.json({
     status: "online",
     application: "GLOBAL TREND RADAR",
-    version: "2.1.0",
-    newsSources: ["GDELT", "Google News RSS"],
+    version: "2.2.0",
+    newsSources: ["Google News RSS", "GDELT"],
     musicSources: ["Apple Music RSS"],
     time: new Date().toISOString()
   });
@@ -308,23 +418,22 @@ app.get("/api/countries", (req, res) => {
   res.json(countries);
 });
 
-// NEWS
+// NEWS RADAR
 app.get("/api/news", async (req, res) => {
   const country = getCountry(req.query.country);
 
   try {
-    const data = await getNewsArticles(country);
+    const data = await getNewsData(country);
 
     res.json({
       country: data.country,
       updatedAt: data.updatedAt,
       total: data.articles.length,
       articles: data.articles,
-      provider: data.provider,
+      source: data.source,
       cached: data.cached,
       stale: Boolean(data.stale)
     });
-
   } catch (error) {
     res.status(502).json({
       error: "News service is temporarily unavailable.",
@@ -334,59 +443,20 @@ app.get("/api/news", async (req, res) => {
   }
 });
 
-// APPLE MUSIC RADAR
+// MUSIC RADAR
 app.get("/api/music", async (req, res) => {
   const country = getCountry(req.query.country);
-  const cacheKey = `music-${country.code}`;
-
-  const saved = getCached(cacheKey);
-  if (saved) return res.json(saved);
 
   try {
-    const url =
-      `https://rss.marketingtools.apple.com/api/v2/${country.code.toLowerCase()}/music/most-played/25/songs.json`;
-
-    const data = await fetchJSON(url);
-    const results = data.feed?.results || [];
-
-    if (!results.length) {
-      throw new Error(
-        "No Apple Music chart available for this country."
-      );
-    }
-
-    const songs = results.map((song, index) => ({
-      rank: index + 1,
-      id: song.id || "",
-      title: song.name || "Unknown song",
-      artist: song.artistName || "Unknown artist",
-      album: song.collectionName || "",
-      artwork: song.artworkUrl100 || "",
-      url: song.url || "",
-      releaseDate: song.releaseDate || "",
-      genres: (song.genres || []).map(g => g.name)
-    }));
-
-    const result = {
-      country: country.name,
-      source: "Apple Music",
-      chart: "Top 25 Most Played Songs",
-      updatedAt: new Date().toISOString(),
-      total: songs.length,
-      configured: true,
-      songs
-    };
-
-    setCached(cacheKey, result, 30);
-    res.json(result);
-
+    const data = await getAppleMusic(country);
+    res.json(data);
   } catch (error) {
-    console.error("Apple Music error:", error.message);
-
     res.status(502).json({
       error: "Music service is temporarily unavailable.",
       details: error.message,
-      songs: []
+      country: country.name,
+      songs: [],
+      videos: []
     });
   }
 });
@@ -396,7 +466,7 @@ app.get("/api/viral", async (req, res) => {
   const country = getCountry(req.query.country);
 
   try {
-    const data = await getNewsArticles(country);
+    const data = await getNewsData(country);
 
     const trends = data.articles.map((article, index) => ({
       rank: index + 1,
@@ -413,12 +483,11 @@ app.get("/api/viral", async (req, res) => {
       updatedAt: data.updatedAt,
       total: trends.length,
       trends,
-      provider: data.provider,
+      source: data.source,
       cached: data.cached,
       stale: Boolean(data.stale),
-      note: "These are news topics, not verified social-media popularity rankings."
+      note: "These are news topics, not verified cross-platform social media popularity rankings."
     });
-
   } catch (error) {
     console.error("Viral error:", error.message);
 
@@ -430,7 +499,7 @@ app.get("/api/viral", async (req, res) => {
   }
 });
 
-// CONTENT STUDIO
+// ORIGINAL CONTENT STUDIO
 app.post("/api/script", (req, res) => {
   const topic = String(req.body.topic || "")
     .trim()
@@ -503,9 +572,7 @@ Follow GLOBAL TREND RADAR to stay informed about what is happening around the wo
 
 // HOME PAGE
 app.get("/", (req, res) => {
-  res.sendFile(
-    path.join(__dirname, "public", "index.html")
-  );
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // UNKNOWN API ROUTES
@@ -519,6 +586,8 @@ app.use("/api", (req, res) => {
 app.use((error, req, res, next) => {
   console.error("Server error:", error.message);
 
+  if (res.headersSent) return next(error);
+
   res.status(500).json({
     error: "An unexpected server error occurred."
   });
@@ -526,7 +595,5 @@ app.use((error, req, res, next) => {
 
 // START SERVER
 app.listen(PORT, () => {
-  console.log(
-    `GLOBAL TREND RADAR running on port ${PORT}`
-  );
+  console.log(`GLOBAL TREND RADAR v2.2.0 running on port ${PORT}`);
 });
