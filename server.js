@@ -27,7 +27,7 @@ const countries = [
   { code: "CA", name: "Canada" }
 ];
 
-// GENERAL CACHE
+// CACHE
 const cache = new Map();
 
 function getCached(key) {
@@ -53,11 +53,13 @@ function getCountry(code) {
   ) || countries[0];
 }
 
-// HTTP JSON REQUEST
+// HTTP JSON
 async function fetchJSON(url) {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(20000),
-    headers: { "User-Agent": "GlobalTrendRadar/2.0" }
+    headers: {
+      "User-Agent": "GlobalTrendRadar/2.1"
+    }
   });
 
   const body = await response.text();
@@ -73,12 +75,12 @@ async function fetchJSON(url) {
   }
 }
 
-// RSS REQUEST
+// RSS
 async function fetchRSS(url) {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(15000),
     headers: {
-      "User-Agent": "GlobalTrendRadar/2.0",
+      "User-Agent": "GlobalTrendRadar/2.1",
       "Accept": "application/rss+xml, application/xml, text/xml"
     }
   });
@@ -90,7 +92,6 @@ async function fetchRSS(url) {
   return response.text();
 }
 
-// RSS TEXT CLEANER
 function cleanXML(value) {
   return String(value || "")
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -119,26 +120,18 @@ function getXMLTag(block, tag) {
   return match ? cleanXML(match[1]) : "";
 }
 
-// PARSE RSS
 function parseRSS(xml, countryName) {
   const items = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
 
-  return items.map(item => {
-    const title = getXMLTag(item, "title");
-    const link = getXMLTag(item, "link");
-    const pubDate = getXMLTag(item, "pubDate");
-    const source = getXMLTag(item, "source");
-
-    return {
-      title: title || "Untitled news",
-      url: link,
-      source: source || "Google News RSS",
-      publishedAt: pubDate || null,
-      image: "",
-      language: "",
-      country: countryName
-    };
-  }).filter(article => article.title && article.url);
+  return items.map(item => ({
+    title: getXMLTag(item, "title") || "Untitled news",
+    url: getXMLTag(item, "link"),
+    source: getXMLTag(item, "source") || "Google News RSS",
+    publishedAt: getXMLTag(item, "pubDate") || null,
+    image: "",
+    language: "",
+    country: countryName
+  })).filter(article => article.title && article.url);
 }
 
 // GDELT REQUEST QUEUE
@@ -159,8 +152,6 @@ function queuedGdeltRequest(url) {
 
     lastGdeltRequestAt = Date.now();
 
-    console.log("GDELT request:", new Date().toISOString());
-
     return fetchJSON(url);
   });
 
@@ -168,7 +159,6 @@ function queuedGdeltRequest(url) {
   return task;
 }
 
-// GDELT NEWS
 async function getGdeltArticles(country) {
   const url = new URL(
     "https://api.gdeltproject.org/api/v2/doc/doc"
@@ -198,7 +188,6 @@ async function getGdeltArticles(country) {
   })).filter(article => article.url);
 }
 
-// GOOGLE NEWS RSS FALLBACK
 async function getRSSArticles(country) {
   const url = new URL("https://news.google.com/rss/search");
 
@@ -217,14 +206,13 @@ async function getRSSArticles(country) {
   return articles;
 }
 
-// SHARED NEWS CACHE AND FALLBACK
+// SHARED NEWS CACHE
 const newsCache = new Map();
 const newsInFlight = new Map();
 
 async function getNewsArticles(country) {
   const key = country.code;
   const now = Date.now();
-
   const saved = newsCache.get(key);
 
   if (saved && now < saved.expiresAt) {
@@ -243,7 +231,6 @@ async function getNewsArticles(country) {
       let articles;
       let provider;
 
-      // 1. Try GDELT unless it is temporarily rate-limited.
       if (Date.now() >= gdeltCooldownUntil) {
         try {
           articles = await getGdeltArticles(country);
@@ -253,12 +240,10 @@ async function getNewsArticles(country) {
 
           if (error.message.includes("429")) {
             gdeltCooldownUntil = Date.now() + 10 * 60 * 1000;
-            console.log("GDELT cooldown: 10 minutes");
           }
         }
       }
 
-      // 2. If GDELT fails, use Google News RSS.
       if (!articles || !articles.length) {
         articles = await getRSSArticles(country);
         provider = "Google News RSS";
@@ -285,7 +270,6 @@ async function getNewsArticles(country) {
     } catch (error) {
       console.error("News sources error:", error.message);
 
-      // 3. If both sources fail, use saved older news.
       const old = newsCache.get(key);
 
       if (old && Date.now() < old.staleUntil) {
@@ -307,13 +291,14 @@ async function getNewsArticles(country) {
   return request;
 }
 
-// HEALTH CHECK
+// HEALTH
 app.get("/api/health", (req, res) => {
   res.json({
     status: "online",
     application: "GLOBAL TREND RADAR",
-    version: "2.0.0",
+    version: "2.1.0",
     newsSources: ["GDELT", "Google News RSS"],
+    musicSources: ["Apple Music RSS"],
     time: new Date().toISOString()
   });
 });
@@ -323,7 +308,7 @@ app.get("/api/countries", (req, res) => {
   res.json(countries);
 });
 
-// NEWS RADAR
+// NEWS
 app.get("/api/news", async (req, res) => {
   const country = getCountry(req.query.country);
 
@@ -349,7 +334,7 @@ app.get("/api/news", async (req, res) => {
   }
 });
 
-// MUSIC RADAR
+// APPLE MUSIC RADAR
 app.get("/api/music", async (req, res) => {
   const country = getCountry(req.query.country);
   const cacheKey = `music-${country.code}`;
@@ -357,60 +342,51 @@ app.get("/api/music", async (req, res) => {
   const saved = getCached(cacheKey);
   if (saved) return res.json(saved);
 
-  if (!YOUTUBE_API_KEY) {
-    return res.json({
-      country: country.name,
-      configured: false,
-      message: "YouTube API key has not been configured yet.",
-      videos: []
-    });
-  }
-
   try {
-    const url = new URL(
-      "https://www.googleapis.com/youtube/v3/videos"
-    );
+    const url =
+      `https://rss.marketingtools.apple.com/api/v2/${country.code.toLowerCase()}/music/most-played/25/songs.json`;
 
-    url.searchParams.set("part", "snippet,statistics");
-    url.searchParams.set("chart", "mostPopular");
-    url.searchParams.set("regionCode", country.code);
-    url.searchParams.set("videoCategoryId", "10");
-    url.searchParams.set("maxResults", "20");
-    url.searchParams.set("key", YOUTUBE_API_KEY);
+    const data = await fetchJSON(url);
+    const results = data.feed?.results || [];
 
-    const data = await fetchJSON(url.toString());
+    if (!results.length) {
+      throw new Error(
+        "No Apple Music chart available for this country."
+      );
+    }
 
-    const videos = (data.items || []).map(video => ({
-      videoId: video.id,
-      title: video.snippet?.title || "Untitled video",
-      channelTitle: video.snippet?.channelTitle || "Unknown artist",
-      thumbnail:
-        video.snippet?.thumbnails?.high?.url ||
-        video.snippet?.thumbnails?.medium?.url ||
-        "",
-      publishedAt: video.snippet?.publishedAt || null,
-      views: Number(video.statistics?.viewCount || 0),
-      url: `https://www.youtube.com/watch?v=${video.id}`
+    const songs = results.map((song, index) => ({
+      rank: index + 1,
+      id: song.id || "",
+      title: song.name || "Unknown song",
+      artist: song.artistName || "Unknown artist",
+      album: song.collectionName || "",
+      artwork: song.artworkUrl100 || "",
+      url: song.url || "",
+      releaseDate: song.releaseDate || "",
+      genres: (song.genres || []).map(g => g.name)
     }));
 
     const result = {
       country: country.name,
-      configured: true,
+      source: "Apple Music",
+      chart: "Top 25 Most Played Songs",
       updatedAt: new Date().toISOString(),
-      total: videos.length,
-      videos
+      total: songs.length,
+      configured: true,
+      songs
     };
 
-    setCached(cacheKey, result, 10);
+    setCached(cacheKey, result, 30);
     res.json(result);
 
   } catch (error) {
-    console.error("YouTube error:", error.message);
+    console.error("Apple Music error:", error.message);
 
     res.status(502).json({
       error: "Music service is temporarily unavailable.",
       details: error.message,
-      videos: []
+      songs: []
     });
   }
 });
@@ -420,7 +396,6 @@ app.get("/api/viral", async (req, res) => {
   const country = getCountry(req.query.country);
 
   try {
-    // Reuses News data: no separate GDELT/RSS request.
     const data = await getNewsArticles(country);
 
     const trends = data.articles.map((article, index) => ({
@@ -455,7 +430,7 @@ app.get("/api/viral", async (req, res) => {
   }
 });
 
-// ORIGINAL CONTENT STUDIO
+// CONTENT STUDIO
 app.post("/api/script", (req, res) => {
   const topic = String(req.body.topic || "")
     .trim()
