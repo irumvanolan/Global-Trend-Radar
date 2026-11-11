@@ -2,255 +2,73 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#07111f">
-  <title>GLOBAL TREND RADAR</title>
-  <style>
-    :root {
-      --bg: #07111f;
-      --panel: #101e30;
-      --panel2: #14253a;
-      --line: #263a50;
-      --text: #f1f5f9;
-      --muted: #91a4ba;
-      --cyan: #39d5e8;
-      --green: #38d996;
-      --orange: #ffb454;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Arial, sans-serif;
-    }
-
-    header {
-      padding: 20px 5%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 15px;
-      flex-wrap: wrap;
-      border-bottom: 1px solid var(--line);
-      background: #0b1727;
-    }
-
-    .brand {
-      font-size: 21px;
-      font-weight: 900;
-      letter-spacing: 1px;
-    }
-
-    .brand span { color: var(--cyan); }
-
-    .tagline {
-      color: var(--muted);
-      font-size: 12px;
-      margin-top: 5px;
-    }
-
-    .live {
-      color: var(--green);
-      font-size: 12px;
-      font-weight: bold;
-    }
-
-    main {
-      max-width: 1400px;
-      margin: auto;
-      padding: 25px 5%;
-    }
-
-    .hero {
-      padding: 30px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: linear-gradient(120deg, #10243a, #102e40);
-      margin-bottom: 24px;
-    }
-
-    .hero h1 {
-      font-size: clamp(27px, 5vw, 45px);
-      margin: 0 0 12px;
-    }
-
-    .hero h1 span { color: var(--cyan); }
-
-    .hero p {
-      color: var(--muted);
-      line-height: 1.6;
-      max-width: 650px;
-    }
-
-    .toolbar {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin: 20px 0;
-    }
-
-    select, input, button, textarea {
-      font: inherit;
-      border-radius: 9px;
-      padding: 12px;
-    }
-
-    select, input, textarea {
-      background: var(--panel);
-      color: white;
-      border: 1px solid var(--line);
-    }
-
-    button {
-      border: 0;
-      background: var(--cyan);
-      color: #06121e;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    button:hover { opacity: .85; }
-
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 15px;
-      margin: 20px 0 30px;
-    }
-
-    .stat, .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 18px;
-    }
-
-    .stat small {
-      color: var(--muted);
-      display: block;
-      margin-bottom: 10px;
-    }
-
-    .stat strong {
-      font-size: 25px;
-      color: var(--cyan);
-    }
-
-    .section-title {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 30px 0 14px;
-      gap: 10px;
-    }
-
-    .section-title h2 {
-      font-size: 19px;
-      margin: 0;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 18px;
-    }
-
-    .panel h3 { margin-top: 0; }
-
-    .item {
-      padding: 13px 0;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .item:last-child { border-bottom: 0; }
-
-    .item a {
-      color: var(--text);
-      text-decoration: none;
-      font-weight: bold;
-      line-height: 1.5;
-    }
-
-    .item a:hover { color: var(--cyan); }
-
-    .meta {
-      color: var(--muted);
-      font-size: 12px;
-      margin-top: 7px;
-    }
-
-    .thumbnail {
-      width: 110px;
-      border-radius: 8px;
-      float: left;
-      margin-right: 12px;
-    }
-
-    .clear { clear: both; }
-
-    .studio {
-      margin-top: 25px;
-      background: linear-gradient(120deg, #13243a, #102d36);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 22px;
-    }
-
-    .studio textarea {
-      width: 100%;
-      min-height: 85px;
-      margin: 10px 0;
-      resize: vertical;
-    }
-
-    .studio-controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .studio-controls select { flex: 1; min-width: 120px; }
-
-    #scriptResult {
-      white-space: pre-wrap;
-      line-height: 1.7;
-      background: #071522;
-      padding: 16px;
-      border-radius: 10px;
-      margin-top: 15px;
-      display: none;
-    }
-
-    .status {
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    footer {
-      text-align: center;
-      padding: 30px 10px;
-      color: var(--muted);
-      border-top: 1px solid var(--line);
-      margin-top: 40px;
-      font-size: 12px;
-    }
-
-    @media(max-width: 700px) {
-      .grid, .stats { grid-template-columns: 1fr; }
-      main { padding: 18px 4%; }
-      .hero { padding: 22px; }
-      header { padding: 17px 4%; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#07111f">
+<title>GLOBAL TREND RADAR</title>
+<style>
+:root {
+  --bg:#07111f;--panel:#101e30;--panel2:#14253a;
+  --line:#263a50;--text:#f1f5f9;--muted:#91a4ba;
+  --cyan:#39d5e8;--green:#38d996;--orange:#ffb454;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif}
+header{padding:20px 5%;display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:#0b1727}
+.brand{font-size:21px;font-weight:900;letter-spacing:1px}
+.brand span{color:var(--cyan)}
+.tagline{color:var(--muted);font-size:12px;margin-top:5px}
+.live{color:var(--green);font-size:12px;font-weight:bold}
+main{max-width:1400px;margin:auto;padding:25px 5%}
+.hero{padding:30px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(120deg,#10243a,#102e40);margin-bottom:24px}
+.hero h1{font-size:clamp(27px,5vw,45px);margin:0 0 12px}
+.hero h1 span{color:var(--cyan)}
+.hero p{color:var(--muted);line-height:1.6;max-width:700px}
+.toolbar,.studio-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:20px 0}
+select,input,button,textarea{font:inherit;border-radius:9px;padding:12px}
+select,input,textarea{background:var(--panel);color:white;border:1px solid var(--line)}
+button{border:0;background:var(--cyan);color:#06121e;font-weight:bold;cursor:pointer}
+button:hover{opacity:.85}
+button:disabled{opacity:.5;cursor:wait}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin:20px 0 30px}
+.stat,.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.stat small{color:var(--muted);display:block;margin-bottom:10px}
+.stat strong{font-size:25px;color:var(--cyan)}
+.section-title{display:flex;justify-content:space-between;align-items:center;margin:30px 0 14px;gap:10px}
+.section-title h2{font-size:19px;margin:0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.panel h3{margin-top:0}
+.item{padding:13px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.item a{color:var(--text);text-decoration:none;font-weight:bold;line-height:1.5}
+.item a:hover{color:var(--cyan)}
+.meta{color:var(--muted);font-size:12px;margin-top:7px}
+.thumbnail{width:75px;height:75px;object-fit:cover;border-radius:8px;float:left;margin-right:12px}
+.clear{clear:both}
+.status{color:var(--muted);font-size:13px}
+.compare{margin-top:25px}
+.compare-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.compare-controls select{min-width:220px;min-height:120px}
+.compare-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:18px}
+.country-card{background:#0b1727;border:1px solid var(--line);padding:15px;border-radius:12px}
+.country-card h3{margin-top:0;color:var(--cyan)}
+.country-card ol{padding-left:20px;line-height:1.6}
+.common-list{margin-top:20px;padding:17px;background:#0b1727;border:1px solid var(--line);border-radius:12px}
+.common-list h3{margin-top:0}
+.studio{margin-top:25px;background:linear-gradient(120deg,#13243a,#102d36);border:1px solid var(--line);border-radius:16px;padding:22px}
+.studio textarea{width:100%;min-height:85px;margin:10px 0;resize:vertical}
+.studio-controls select{flex:1;min-width:120px}
+#scriptResult{white-space:pre-wrap;line-height:1.7;background:#071522;padding:16px;border-radius:10px;margin-top:15px;display:none}
+footer{text-align:center;padding:30px 10px;color:var(--muted);border-top:1px solid var(--line);margin-top:40px;font-size:12px}
+@media(max-width:700px){
+ .grid,.stats{grid-template-columns:1fr}
+ main{padding:18px 4%}
+ .hero{padding:22px}
+ header{padding:17px 4%}
+}
+</style>
 </head>
 <body>
-
 <header>
   <div>
     <div class="brand">GLOBAL <span>TREND RADAR</span></div>
@@ -260,292 +78,372 @@
 </header>
 
 <main>
-  <section class="hero">
-    <h1>Discover What Moves <span>The World.</span></h1>
-    <p>
-      Explore trending music, breaking news and viral topics across countries.
-      Discover opportunities and create original content.
-    </p>
-    <div class="toolbar">
-      <select id="country">
-        <option value="RW">🇷🇼 Rwanda</option>
-        <option value="US">🇺🇸 United States</option>
-        <option value="GB">🇬🇧 United Kingdom</option>
-        <option value="KE">🇰🇪 Kenya</option>
-        <option value="UG">🇺🇬 Uganda</option>
-        <option value="TZ">🇹🇿 Tanzania</option>
-        <option value="NG">🇳🇬 Nigeria</option>
-        <option value="ZA">🇿🇦 South Africa</option>
-        <option value="GH">🇬🇭 Ghana</option>
-        <option value="FR">🇫🇷 France</option>
-        <option value="DE">🇩🇪 Germany</option>
-        <option value="IN">🇮🇳 India</option>
-        <option value="BR">🇧🇷 Brazil</option>
-        <option value="JP">🇯🇵 Japan</option>
-        <option value="CA">🇨🇦 Canada</option>
-      </select>
-      <button onclick="loadRadar()">Refresh Radar ↻</button>
-      <span class="status" id="lastUpdate">Ready</span>
-    </div>
-  </section>
-
-  <section class="stats">
-    <div class="stat">
-      <small>NEWS DISCOVERED</small>
-      <strong id="newsCount">—</strong>
-    </div>
-    <div class="stat">
-      <small>MUSIC DISCOVERED</small>
-      <strong id="musicCount">—</strong>
-    </div>
-    <div class="stat">
-      <small>VIRAL TOPICS</small>
-      <strong id="viralCount">—</strong>
-    </div>
-  </section>
-
-  <div class="grid">
-    <section class="panel">
-      <div class="section-title">
-        <h2>🌍 Breaking News Radar</h2>
-      </div>
-      <div id="newsList" class="status">Loading news...</div>
-    </section>
-
-    <section class="panel">
-      <div class="section-title">
-        <h2>🎵 Music Radar</h2>
-      </div>
-      <div id="musicList" class="status">Loading music...</div>
-    </section>
+<section class="hero">
+  <h1>Discover What Moves <span>The World.</span></h1>
+  <p>Explore trending music, breaking news and viral topics across countries. Compare countries and discover opportunities.</p>
+  <div class="toolbar">
+    <select id="country">
+      <option value="RW">🇷🇼 Rwanda</option>
+      <option value="US">🇺🇸 United States</option>
+      <option value="GB">🇬🇧 United Kingdom</option>
+      <option value="KE">🇰🇪 Kenya</option>
+      <option value="UG">🇺🇬 Uganda</option>
+      <option value="TZ">🇹🇿 Tanzania</option>
+      <option value="NG">🇳🇬 Nigeria</option>
+      <option value="ZA">🇿🇦 South Africa</option>
+      <option value="GH">🇬🇭 Ghana</option>
+      <option value="FR">🇫🇷 France</option>
+      <option value="DE">🇩🇪 Germany</option>
+      <option value="IN">🇮🇳 India</option>
+      <option value="BR">🇧🇷 Brazil</option>
+      <option value="JP">🇯🇵 Japan</option>
+      <option value="CA">🇨🇦 Canada</option>
+    </select>
+    <button onclick="loadRadar()">Refresh Radar ↻</button>
+    <span class="status" id="lastUpdate">Ready</span>
   </div>
+</section>
 
-  <section class="panel" style="margin-top:18px">
-    <div class="section-title">
-      <h2>🔥 Viral Radar</h2>
-    </div>
-    <div id="viralList" class="status">Loading trends...</div>
+<section class="stats">
+  <div class="stat"><small>NEWS DISCOVERED</small><strong id="newsCount">—</strong></div>
+  <div class="stat"><small>MUSIC DISCOVERED</small><strong id="musicCount">—</strong></div>
+  <div class="stat"><small>VIRAL TOPICS</small><strong id="viralCount">—</strong></div>
+</section>
+
+<div class="grid">
+  <section class="panel">
+    <div class="section-title"><h2>🌍 Breaking News Radar</h2></div>
+    <div id="newsList" class="status">Loading news...</div>
   </section>
-
-  <section class="studio">
-    <h2>✨ AI Content Studio</h2>
-    <p class="status">
-      Turn a topic into an original short-video script.
-    </p>
-
-    <textarea id="topic" placeholder="Enter a song, news story or trending topic..."></textarea>
-
-    <div class="studio-controls">
-      <select id="language">
-        <option value="rw">Kinyarwanda</option>
-        <option value="en">English</option>
-      </select>
-
-      <select id="style">
-        <option value="news">News Explainer</option>
-        <option value="story">Story</option>
-        <option value="education">Education</option>
-        <option value="entertainment">Entertainment</option>
-      </select>
-
-      <select id="duration">
-        <option value="15">15 seconds</option>
-        <option value="30" selected>30 seconds</option>
-        <option value="60">60 seconds</option>
-        <option value="90">90 seconds</option>
-      </select>
-    </div>
-
-    <button onclick="generateScript()">Generate Script ✨</button>
-    <button onclick="copyScript()" style="margin-left:7px">Copy Script</button>
-    <div id="scriptResult"></div>
+  <section class="panel">
+    <div class="section-title"><h2>🎵 Music Radar</h2></div>
+    <div id="musicList" class="status">Loading music...</div>
   </section>
+</div>
+
+<section class="panel" style="margin-top:18px">
+  <div class="section-title"><h2>🔥 Viral Radar</h2></div>
+  <div id="viralList" class="status">Loading trends...</div>
+</section>
+
+<section class="panel compare">
+  <div class="section-title">
+    <h2>🌐 Country Comparison</h2>
+  </div>
+  <p class="status">Select 2 to 5 countries to compare their Apple Music charts and available news.</p>
+  <div class="compare-controls">
+    <select id="compareCountries" multiple size="7">
+      <option value="RW" selected>🇷🇼 Rwanda</option>
+      <option value="US" selected>🇺🇸 United States</option>
+      <option value="GB">🇬🇧 United Kingdom</option>
+      <option value="KE">🇰🇪 Kenya</option>
+      <option value="UG">🇺🇬 Uganda</option>
+      <option value="TZ">🇹🇿 Tanzania</option>
+      <option value="NG">🇳🇬 Nigeria</option>
+      <option value="ZA">🇿🇦 South Africa</option>
+      <option value="GH">🇬🇭 Ghana</option>
+      <option value="FR">🇫🇷 France</option>
+      <option value="DE">🇩🇪 Germany</option>
+      <option value="IN">🇮🇳 India</option>
+      <option value="BR">🇧🇷 Brazil</option>
+      <option value="JP">🇯🇵 Japan</option>
+      <option value="CA">🇨🇦 Canada</option>
+    </select>
+    <button id="compareButton" onclick="compareCountries()">Compare Countries</button>
+  </div>
+  <div id="compareStatus" class="status" style="margin-top:12px">Choose countries and start comparison.</div>
+  <div id="compareResults"></div>
+</section>
+
+<section class="studio">
+  <h2>✨ AI Content Studio</h2>
+  <p class="status">Turn a topic into an original short-video script.</p>
+  <textarea id="topic" placeholder="Enter a song, news story or trending topic..."></textarea>
+  <div class="studio-controls">
+    <select id="language">
+      <option value="rw">Kinyarwanda</option>
+      <option value="en">English</option>
+    </select>
+    <select id="style">
+      <option value="news">News Explainer</option>
+      <option value="story">Story</option>
+      <option value="education">Education</option>
+      <option value="entertainment">Entertainment</option>
+    </select>
+    <select id="duration">
+      <option value="15">15 seconds</option>
+      <option value="30" selected>30 seconds</option>
+      <option value="60">60 seconds</option>
+      <option value="90">90 seconds</option>
+    </select>
+  </div>
+  <button onclick="generateScript()">Generate Script ✨</button>
+  <button onclick="copyScript()" style="margin-left:7px">Copy Script</button>
+  <div id="scriptResult"></div>
+</section>
 </main>
 
-<footer>
-  GLOBAL TREND RADAR © 2026 · The World's Pulse. Your Next Opportunity.
-</footer>
+<footer>GLOBAL TREND RADAR © 2026 · The World's Pulse. Your Next Opportunity.</footer>
 
 <script>
-  const $ = id => document.getElementById(id);
+const $ = id => document.getElementById(id);
 
-  function escapeHTML(value) {
-    return String(value ?? "").replace(/[&<>"']/g, char => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    })[char]);
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  })[char]);
+}
+
+function safeUrl(value) {
+  try {
+    const url = new URL(value);
+    return ["https:","http:"].includes(url.protocol) ? escapeHTML(url.href) : "#";
+  } catch {
+    return "#";
   }
+}
 
-  function safeUrl(value) {
-    try {
-      const url = new URL(value);
-      return ["https:", "http:"].includes(url.protocol)
-        ? escapeHTML(url.href)
-        : "#";
-    } catch {
-      return "#";
-    }
-  }
+async function api(url, options = {}) {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
 
-  async function api(url, options = {}) {
-    const response = await fetch(url, options);
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Request failed");
-    return data;
-  }
+function renderNews(data) {
+  const articles = data.articles || [];
+  $("newsCount").textContent = articles.length;
+  $("newsList").innerHTML = articles.length
+    ? articles.map(article => `
+      <div class="item">
+        <a href="${safeUrl(article.url)}" target="_blank" rel="noopener">${escapeHTML(article.title)}</a>
+        <div class="meta">${escapeHTML(article.source)} · ${escapeHTML(article.publishedAt || "Date unavailable")}</div>
+      </div>`).join("")
+    : "No news available right now.";
+}
 
-  function renderNews(data) {
-    const articles = data.articles || [];
-    $("newsCount").textContent = articles.length;
+function renderMusic(data) {
+  const songs = data.songs || [];
+  const videos = data.videos || [];
+  const items = songs.length ? songs : videos;
+  $("musicCount").textContent = items.length;
 
-    $("newsList").innerHTML = articles.length
-      ? articles.map(article => `
+  $("musicList").innerHTML = items.length
+    ? items.map((song, index) => {
+      const title = song.title || song.name || "Unknown song";
+      const artist = song.artist || song.channelTitle || "Unknown artist";
+      const image = song.artwork || song.thumbnail || "";
+      const url = song.url || "#";
+      return `
         <div class="item">
-          <a href="${safeUrl(article.url)}" target="_blank" rel="noopener">
-            ${escapeHTML(article.title)}
+          ${image ? `<img class="thumbnail" src="${safeUrl(image)}" alt="">` : ""}
+          <a href="${safeUrl(url)}" target="_blank" rel="noopener">
+            ${index + 1}. ${escapeHTML(title)}
           </a>
-          <div class="meta">
-            ${escapeHTML(article.source)} ·
-            ${escapeHTML(article.publishedAt || "Date unavailable")}
-          </div>
-        </div>
-      `).join("")
-      : "No news available right now.";
-  }
-
-  function renderMusic(data) {
-    const videos = data.videos || [];
-    $("musicCount").textContent = videos.length;
-
-    if (!data.configured) {
-      $("musicList").innerHTML =
-        '<p class="status">YouTube API key is not configured yet. Music Radar will activate after setup.</p>';
-      return;
-    }
-
-    $("musicList").innerHTML = videos.length
-      ? videos.map(video => `
-        <div class="item">
-          ${video.thumbnail
-            ? `<img class="thumbnail" src="${safeUrl(video.thumbnail)}" alt="">`
-            : ""}
-          <a href="${safeUrl(video.url)}" target="_blank" rel="noopener">
-            ${escapeHTML(video.title)}
-          </a>
-          <div class="meta">
-            ${escapeHTML(video.channelTitle)} ·
-            ${Number(video.views).toLocaleString()} views
-          </div>
+          <div class="meta">${escapeHTML(artist)} · ${escapeHTML(song.album || "")}</div>
           <div class="clear"></div>
-        </div>
-      `).join("")
-      : "No music videos available.";
+        </div>`;
+    }).join("")
+    : "No music available right now.";
+}
+
+function renderViral(data) {
+  const trends = data.trends || [];
+  $("viralCount").textContent = trends.length;
+  $("viralList").innerHTML = trends.length
+    ? trends.map(trend => `
+      <div class="item">
+        <a href="${safeUrl(trend.url)}" target="_blank" rel="noopener">
+          ${trend.rank}. ${escapeHTML(trend.title)}
+        </a>
+        <div class="meta">${escapeHTML(trend.source)} · ${escapeHTML(trend.status || "UNVERIFIED")}</div>
+      </div>`).join("")
+    : "No topics available right now.";
+}
+
+async function loadRadar() {
+  const country = $("country").value;
+  $("lastUpdate").textContent = "Updating...";
+  $("newsList").textContent = "Loading news...";
+  $("musicList").textContent = "Loading music...";
+  $("viralList").textContent = "Loading trends...";
+
+  const results = await Promise.allSettled([
+    api(`/api/news?country=${country}`),
+    api(`/api/music?country=${country}`),
+    api(`/api/viral?country=${country}`)
+  ]);
+
+  const renderers = [renderNews,renderMusic,renderViral];
+  const containers = ["newsList","musicList","viralList"];
+
+  results.forEach((result,index) => {
+    if (result.status === "fulfilled") {
+      renderers[index](result.value);
+    } else {
+      $(containers[index]).textContent = "Service temporarily unavailable. Try again.";
+      if(index===0) $("newsCount").textContent="—";
+      if(index===1) $("musicCount").textContent="—";
+      if(index===2) $("viralCount").textContent="—";
+    }
+  });
+
+  $("lastUpdate").textContent = "Last checked: " + new Date().toLocaleTimeString();
+}
+
+async function compareCountries() {
+  const selected = Array.from($("compareCountries").selectedOptions).map(option => ({
+    code: option.value,
+    name: option.textContent
+  }));
+
+  if(selected.length < 2 || selected.length > 5) {
+    $("compareStatus").textContent = "Please select between 2 and 5 countries.";
+    return;
   }
 
-  function renderViral(data) {
-    const trends = data.trends || [];
-    $("viralCount").textContent = trends.length;
+  const button = $("compareButton");
+  button.disabled = true;
+  button.textContent = "Comparing...";
+  $("compareStatus").textContent = "Collecting country data...";
+  $("compareResults").innerHTML = "";
 
-    $("viralList").innerHTML = trends.length
-      ? trends.map(trend => `
-        <div class="item">
-          <a href="${safeUrl(trend.url)}" target="_blank" rel="noopener">
-            ${trend.rank}. ${escapeHTML(trend.title)}
-          </a>
-          <div class="meta">
-            ${escapeHTML(trend.source)} · UNVERIFIED
-          </div>
-        </div>
-      `).join("")
-      : "No topics available right now.";
-  }
+  try {
+    const results = await Promise.all(selected.map(async country => {
+      const [musicResult,newsResult] = await Promise.allSettled([
+        api(`/api/music?country=${country.code}`),
+        api(`/api/news?country=${country.code}`)
+      ]);
 
-  async function loadRadar() {
-    const country = $("country").value;
-    $("lastUpdate").textContent = "Updating...";
+      const music = musicResult.status === "fulfilled" ? musicResult.value : null;
+      const news = newsResult.status === "fulfilled" ? newsResult.value : null;
 
-    $("newsList").textContent = "Loading news...";
-    $("musicList").textContent = "Loading music...";
-    $("viralList").textContent = "Loading trends...";
+      return {
+        ...country,
+        songs: music ? (music.songs || []) : [],
+        newsCount: news ? (news.articles || []).length : null,
+        musicError: musicResult.status === "rejected",
+        newsError: newsResult.status === "rejected"
+      };
+    }));
 
-    const results = await Promise.allSettled([
-      api(`/api/news?country=${country}`),
-      api(`/api/music?country=${country}`),
-      api(`/api/viral?country=${country}`)
-    ]);
+    const songMap = new Map();
 
-    const renderers = [renderNews, renderMusic, renderViral];
-    const containers = ["newsList", "musicList", "viralList"];
+    results.forEach(country => {
+      country.songs.forEach((song,index) => {
+        const title = String(song.title || "").trim();
+        const artist = String(song.artist || "").trim();
+        const key = (title + "|" + artist).toLowerCase();
 
-    results.forEach((result, index) => {
-      if (result.status === "fulfilled") {
-        renderers[index](result.value);
-      } else {
-        $(containers[index]).textContent =
-          "Service temporarily unavailable. Try again.";
-        if (index === 0) $("newsCount").textContent = "—";
-        if (index === 1) $("musicCount").textContent = "—";
-        if (index === 2) $("viralCount").textContent = "—";
-      }
+        if(!title) return;
+
+        if(!songMap.has(key)) {
+          songMap.set(key,{
+            title,artist,countries:[],ranks:[]
+          });
+        }
+
+        const entry = songMap.get(key);
+        entry.countries.push(country.name);
+        entry.ranks.push(Number(song.rank || index + 1));
+      });
     });
 
-    $("lastUpdate").textContent =
-      "Last checked: " + new Date().toLocaleTimeString();
-  }
-
-  async function generateScript() {
-    const topic = $("topic").value.trim();
-
-    if (!topic) {
-      alert("Please enter a topic first.");
-      return;
-    }
-
-    const result = $("scriptResult");
-    result.style.display = "block";
-    result.textContent = "Generating your script...";
-
-    try {
-      const data = await api("/api/script", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic,
-          country: $("country").value,
-          language: $("language").value,
-          style: $("style").value,
-          duration: Number($("duration").value)
-        })
+    const commonSongs = Array.from(songMap.values())
+      .filter(song => song.countries.length > 1)
+      .sort((a,b) => {
+        if(b.countries.length !== a.countries.length)
+          return b.countries.length - a.countries.length;
+        const avgA = a.ranks.reduce((x,y)=>x+y,0)/a.ranks.length;
+        const avgB = b.ranks.reduce((x,y)=>x+y,0)/b.ranks.length;
+        return avgA-avgB;
       });
 
-      result.textContent = data.script + "\n\n" + data.note;
-    } catch (error) {
-      result.textContent = "Error: " + error.message;
-    }
+    $("compareResults").innerHTML = `
+      <div class="compare-results">
+        ${results.map(country => `
+          <div class="country-card">
+            <h3>${escapeHTML(country.name)}</h3>
+            <p><strong>Music chart:</strong> ${country.musicError ? "Unavailable" : country.songs.length + " songs"}</p>
+            <p><strong>News articles:</strong> ${country.newsCount === null ? "Unavailable" : country.newsCount}</p>
+            <strong>Top songs</strong>
+            <ol>
+              ${country.songs.slice(0,5).map(song =>
+                `<li>${escapeHTML(song.title)} — ${escapeHTML(song.artist || "")}</li>`
+              ).join("") || "<li>No songs available</li>"}
+            </ol>
+          </div>
+        `).join("")}
+      </div>
+      <div class="common-list">
+        <h3>🎵 Songs shared across countries</h3>
+        ${commonSongs.length
+          ? `<ol>${commonSongs.slice(0,15).map(song => {
+              const average = song.ranks.reduce((a,b)=>a+b,0)/song.ranks.length;
+              return `<li><strong>${escapeHTML(song.title)}</strong> — ${escapeHTML(song.artist)}
+                <div class="meta">Appears in ${song.countries.length} countries · Average chart position: ${average.toFixed(1)}
+                <br>${song.countries.map(escapeHTML).join(", ")}</div></li>`;
+            }).join("")}</ol>`
+          : "<p>No shared songs found in the selected charts.</p>"}
+      </div>
+      <p class="status">Comparison uses the returned Apple Music chart positions and available news article counts. It is not a measure of total streams or social-media popularity.</p>
+    `;
+
+    $("compareStatus").textContent = "Comparison completed · " + new Date().toLocaleTimeString();
+  } catch(error) {
+    $("compareStatus").textContent = "Comparison failed: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Compare Countries";
+  }
+}
+
+async function generateScript() {
+  const topic = $("topic").value.trim();
+  if(!topic) {
+    alert("Please enter a topic first.");
+    return;
   }
 
-  async function copyScript() {
-    const text = $("scriptResult").textContent;
+  const result = $("scriptResult");
+  result.style.display = "block";
+  result.textContent = "Generating your script...";
 
-    if (!text) {
-      alert("Generate a script first.");
-      return;
-    }
+  try {
+    const data = await api("/api/script",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        topic,
+        country:$("country").value,
+        language:$("language").value,
+        style:$("style").value,
+        duration:Number($("duration").value)
+      })
+    });
+    result.textContent = data.script + "\n\n" + data.note;
+  } catch(error) {
+    result.textContent = "Error: " + error.message;
+  }
+}
 
-    try {
-      await navigator.clipboard.writeText(text);
-      alert("Script copied!");
-    } catch {
-      alert("Copy is not supported by this browser.");
-    }
+async function copyScript() {
+  const text = $("scriptResult").textContent;
+  if(!text) {
+    alert("Generate a script first.");
+    return;
   }
 
-  $("country").addEventListener("change", loadRadar);
-  loadRadar();
+  try {
+    await navigator.clipboard.writeText(text);
+    alert("Script copied!");
+  } catch {
+    alert("Copy is not supported by this browser.");
+  }
+}
+
+$("country").addEventListener("change",loadRadar);
+loadRadar();
 </script>
-
 </body>
 </html>
