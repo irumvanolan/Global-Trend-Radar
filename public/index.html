@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -46,6 +45,14 @@ button:disabled{opacity:.5;cursor:wait}
 .thumbnail{width:75px;height:75px;object-fit:cover;border-radius:8px;float:left;margin-right:12px}
 .clear{clear:both}
 .status{color:var(--muted);font-size:13px}
+.global-songs{margin-top:18px}
+.global-song{display:grid;grid-template-columns:42px 58px minmax(0,1fr);gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.global-song:last-child{border-bottom:0}
+.global-rank{font-size:20px;font-weight:900;color:var(--cyan);text-align:center}
+.global-art{width:58px;height:58px;object-fit:cover;border-radius:8px}
+.global-song-title{font-weight:bold;line-height:1.4}
+.global-song-meta{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
+.global-points{font-size:12px;color:var(--green);font-weight:bold}
 .compare{margin-top:25px}
 .compare-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .compare-controls select{min-width:220px;min-height:120px}
@@ -120,6 +127,18 @@ footer{text-align:center;padding:30px 10px;color:var(--muted);border-top:1px sol
     <div id="musicList" class="status">Loading music...</div>
   </section>
 </div>
+
+<section class="panel global-songs">
+  <div class="section-title">
+    <h2>🌎 Global Top Songs — Top 25</h2>
+  </div>
+  <p class="status">
+    Combined ranking from available Apple Music country charts.
+    Points are based on chart position, not streams.
+  </p>
+  <div id="globalSongsList" class="status">Loading global chart...</div>
+  <div id="globalSongsNote" class="meta"></div>
+</section>
 
 <section class="panel" style="margin-top:18px">
   <div class="section-title"><h2>🔥 Viral Radar</h2></div>
@@ -213,6 +232,7 @@ async function api(url, options = {}) {
 function renderNews(data) {
   const articles = data.articles || [];
   $("newsCount").textContent = articles.length;
+
   $("newsList").innerHTML = articles.length
     ? articles.map(article => `
       <div class="item">
@@ -234,6 +254,7 @@ function renderMusic(data) {
       const artist = song.artist || song.channelTitle || "Unknown artist";
       const image = song.artwork || song.thumbnail || "";
       const url = song.url || "#";
+
       return `
         <div class="item">
           ${image ? `<img class="thumbnail" src="${safeUrl(image)}" alt="">` : ""}
@@ -247,9 +268,50 @@ function renderMusic(data) {
     : "No music available right now.";
 }
 
+function renderGlobalSongs(data) {
+  const songs = data.songs || [];
+
+  $("globalSongsList").innerHTML = songs.length
+    ? songs.map(song => `
+      <div class="global-song">
+        <div class="global-rank">${song.rank}</div>
+        ${song.artwork
+          ? `<img class="global-art" src="${safeUrl(song.artwork)}" alt="">`
+          : `<div class="global-art"></div>`}
+        <div>
+          <div class="global-song-title">
+            ${escapeHTML(song.title)} — ${escapeHTML(song.artist)}
+          </div>
+          <div class="global-song-meta">
+            ${song.countries.map(item =>
+              `${escapeHTML(item.name)} (#${item.rank})`
+            ).join(" · ")}
+            <br>
+            Average chart position: ${Number(song.averageChartPosition).toFixed(1)}
+            · <span class="global-points">${song.points} chart points</span>
+          </div>
+          ${song.url
+            ? `<div class="meta">
+                 <a href="${safeUrl(song.url)}" target="_blank" rel="noopener">Open on Apple Music</a>
+               </div>`
+            : ""}
+        </div>
+      </div>`).join("")
+    : "No global chart data is available right now.";
+
+  const available = (data.countriesAvailable || []).length;
+  const unavailable = (data.countriesUnavailable || []).map(item => item.name);
+
+  $("globalSongsNote").textContent =
+    `Charts available: ${available}/${data.countriesChecked || 0}. ` +
+    (unavailable.length ? `Unavailable: ${unavailable.join(", ")}. ` : "") +
+    (data.metric || "");
+}
+
 function renderViral(data) {
   const trends = data.trends || [];
   $("viralCount").textContent = trends.length;
+
   $("viralList").innerHTML = trends.length
     ? trends.map(trend => `
       <div class="item">
@@ -263,42 +325,61 @@ function renderViral(data) {
 
 async function loadRadar() {
   const country = $("country").value;
+
   $("lastUpdate").textContent = "Updating...";
   $("newsList").textContent = "Loading news...";
   $("musicList").textContent = "Loading music...";
   $("viralList").textContent = "Loading trends...";
+  $("globalSongsList").textContent = "Loading global chart...";
 
   const results = await Promise.allSettled([
     api(`/api/news?country=${country}`),
     api(`/api/music?country=${country}`),
-    api(`/api/viral?country=${country}`)
+    api(`/api/viral?country=${country}`),
+    api("/api/global-top-songs")
   ]);
 
-  const renderers = [renderNews,renderMusic,renderViral];
-  const containers = ["newsList","musicList","viralList"];
+  const renderers = [
+    renderNews,
+    renderMusic,
+    renderViral,
+    renderGlobalSongs
+  ];
 
-  results.forEach((result,index) => {
+  const containers = [
+    "newsList",
+    "musicList",
+    "viralList",
+    "globalSongsList"
+  ];
+
+  results.forEach((result, index) => {
     if (result.status === "fulfilled") {
       renderers[index](result.value);
     } else {
-      $(containers[index]).textContent = "Service temporarily unavailable. Try again.";
-      if(index===0) $("newsCount").textContent="—";
-      if(index===1) $("musicCount").textContent="—";
-      if(index===2) $("viralCount").textContent="—";
+      $(containers[index]).textContent =
+        "Service temporarily unavailable. Try again.";
+
+      if (index === 0) $("newsCount").textContent = "—";
+      if (index === 1) $("musicCount").textContent = "—";
+      if (index === 2) $("viralCount").textContent = "—";
     }
   });
 
-  $("lastUpdate").textContent = "Last checked: " + new Date().toLocaleTimeString();
+  $("lastUpdate").textContent =
+    "Last checked: " + new Date().toLocaleTimeString();
 }
 
 async function compareCountries() {
-  const selected = Array.from($("compareCountries").selectedOptions).map(option => ({
-    code: option.value,
-    name: option.textContent
-  }));
+  const selected = Array.from($("compareCountries").selectedOptions)
+    .map(option => ({
+      code: option.value,
+      name: option.textContent
+    }));
 
-  if(selected.length < 2 || selected.length > 5) {
-    $("compareStatus").textContent = "Please select between 2 and 5 countries.";
+  if (selected.length < 2 || selected.length > 5) {
+    $("compareStatus").textContent =
+      "Please select between 2 and 5 countries.";
     return;
   }
 
@@ -310,13 +391,16 @@ async function compareCountries() {
 
   try {
     const results = await Promise.all(selected.map(async country => {
-      const [musicResult,newsResult] = await Promise.allSettled([
+      const [musicResult, newsResult] = await Promise.allSettled([
         api(`/api/music?country=${country.code}`),
         api(`/api/news?country=${country.code}`)
       ]);
 
-      const music = musicResult.status === "fulfilled" ? musicResult.value : null;
-      const news = newsResult.status === "fulfilled" ? newsResult.value : null;
+      const music =
+        musicResult.status === "fulfilled" ? musicResult.value : null;
+
+      const news =
+        newsResult.status === "fulfilled" ? newsResult.value : null;
 
       return {
         ...country,
@@ -330,16 +414,19 @@ async function compareCountries() {
     const songMap = new Map();
 
     results.forEach(country => {
-      country.songs.forEach((song,index) => {
+      country.songs.forEach((song, index) => {
         const title = String(song.title || "").trim();
         const artist = String(song.artist || "").trim();
         const key = (title + "|" + artist).toLowerCase();
 
-        if(!title) return;
+        if (!title) return;
 
-        if(!songMap.has(key)) {
-          songMap.set(key,{
-            title,artist,countries:[],ranks:[]
+        if (!songMap.has(key)) {
+          songMap.set(key, {
+            title,
+            artist,
+            countries: [],
+            ranks: []
           });
         }
 
@@ -351,12 +438,18 @@ async function compareCountries() {
 
     const commonSongs = Array.from(songMap.values())
       .filter(song => song.countries.length > 1)
-      .sort((a,b) => {
-        if(b.countries.length !== a.countries.length)
+      .sort((a, b) => {
+        if (b.countries.length !== a.countries.length) {
           return b.countries.length - a.countries.length;
-        const avgA = a.ranks.reduce((x,y)=>x+y,0)/a.ranks.length;
-        const avgB = b.ranks.reduce((x,y)=>x+y,0)/b.ranks.length;
-        return avgA-avgB;
+        }
+
+        const avgA =
+          a.ranks.reduce((x, y) => x + y, 0) / a.ranks.length;
+
+        const avgB =
+          b.ranks.reduce((x, y) => x + y, 0) / b.ranks.length;
+
+        return avgA - avgB;
       });
 
     $("compareResults").innerHTML = `
@@ -364,34 +457,59 @@ async function compareCountries() {
         ${results.map(country => `
           <div class="country-card">
             <h3>${escapeHTML(country.name)}</h3>
-            <p><strong>Music chart:</strong> ${country.musicError ? "Unavailable" : country.songs.length + " songs"}</p>
-            <p><strong>News articles:</strong> ${country.newsCount === null ? "Unavailable" : country.newsCount}</p>
+            <p><strong>Music chart:</strong>
+              ${country.musicError
+                ? "Unavailable"
+                : country.songs.length + " songs"}
+            </p>
+            <p><strong>News articles:</strong>
+              ${country.newsCount === null
+                ? "Unavailable"
+                : country.newsCount}
+            </p>
             <strong>Top songs</strong>
             <ol>
-              ${country.songs.slice(0,5).map(song =>
+              ${country.songs.slice(0, 5).map(song =>
                 `<li>${escapeHTML(song.title)} — ${escapeHTML(song.artist || "")}</li>`
               ).join("") || "<li>No songs available</li>"}
             </ol>
           </div>
         `).join("")}
       </div>
+
       <div class="common-list">
         <h3>🎵 Songs shared across countries</h3>
         ${commonSongs.length
-          ? `<ol>${commonSongs.slice(0,15).map(song => {
-              const average = song.ranks.reduce((a,b)=>a+b,0)/song.ranks.length;
-              return `<li><strong>${escapeHTML(song.title)}</strong> — ${escapeHTML(song.artist)}
-                <div class="meta">Appears in ${song.countries.length} countries · Average chart position: ${average.toFixed(1)}
-                <br>${song.countries.map(escapeHTML).join(", ")}</div></li>`;
+          ? `<ol>${commonSongs.slice(0, 15).map(song => {
+              const average =
+                song.ranks.reduce((a, b) => a + b, 0) / song.ranks.length;
+
+              return `<li>
+                <strong>${escapeHTML(song.title)}</strong> — ${escapeHTML(song.artist)}
+                <div class="meta">
+                  Appears in ${song.countries.length} countries ·
+                  Average chart position: ${average.toFixed(1)}
+                  <br>${song.countries.map(escapeHTML).join(", ")}
+                </div>
+              </li>`;
             }).join("")}</ol>`
           : "<p>No shared songs found in the selected charts.</p>"}
       </div>
-      <p class="status">Comparison uses the returned Apple Music chart positions and available news article counts. It is not a measure of total streams or social-media popularity.</p>
+
+      <p class="status">
+        Comparison uses the returned Apple Music chart positions and
+        available news article counts. It is not a measure of total streams
+        or social-media popularity.
+      </p>
     `;
 
-    $("compareStatus").textContent = "Comparison completed · " + new Date().toLocaleTimeString();
-  } catch(error) {
-    $("compareStatus").textContent = "Comparison failed: " + error.message;
+    $("compareStatus").textContent =
+      "Comparison completed · " + new Date().toLocaleTimeString();
+
+  } catch (error) {
+    $("compareStatus").textContent =
+      "Comparison failed: " + error.message;
+
   } finally {
     button.disabled = false;
     button.textContent = "Compare Countries";
@@ -400,7 +518,8 @@ async function compareCountries() {
 
 async function generateScript() {
   const topic = $("topic").value.trim();
-  if(!topic) {
+
+  if (!topic) {
     alert("Please enter a topic first.");
     return;
   }
@@ -410,26 +529,29 @@ async function generateScript() {
   result.textContent = "Generating your script...";
 
   try {
-    const data = await api("/api/script",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
+    const data = await api("/api/script", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         topic,
-        country:$("country").value,
-        language:$("language").value,
-        style:$("style").value,
-        duration:Number($("duration").value)
+        country: $("country").value,
+        language: $("language").value,
+        style: $("style").value,
+        duration: Number($("duration").value)
       })
     });
+
     result.textContent = data.script + "\n\n" + data.note;
-  } catch(error) {
+
+  } catch (error) {
     result.textContent = "Error: " + error.message;
   }
 }
 
 async function copyScript() {
   const text = $("scriptResult").textContent;
-  if(!text) {
+
+  if (!text) {
     alert("Generate a script first.");
     return;
   }
@@ -442,7 +564,7 @@ async function copyScript() {
   }
 }
 
-$("country").addEventListener("change",loadRadar);
+$("country").addEventListener("change", loadRadar);
 loadRadar();
 </script>
 </body>
