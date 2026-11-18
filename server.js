@@ -1,4 +1,3 @@
-
 const express = require("express");
 const path = require("path");
 
@@ -8,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: "100kb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-const VERSION = "2.2.0";
+const VERSION = "2.3.0";
 
 const countries = [
   { code: "RW", name: "Rwanda" },
@@ -310,7 +309,6 @@ function matchArticles(articles, topic, country) {
 
   if (matches.length) return matches.slice(0, 3);
 
-  // Generic country-news requests use the latest available headlines.
   const genericRequest =
     topic.toLowerCase().includes("trending") ||
     topic.toLowerCase().includes("news") ||
@@ -490,6 +488,174 @@ app.get("/api/music", async (req, res) => {
     console.error("Apple Music error:", error.message);
     res.status(502).json({
       error: "Music service is temporarily unavailable.",
+      details: error.message,
+      songs: []
+    });
+  }
+});
+
+// GLOBAL TOP SONGS - AGGREGATED COUNTRY CHARTS
+let globalSongsCache = null;
+let globalSongsExpiresAt = 0;
+let globalSongsInFlight = null;
+
+async function getGlobalTopSongs() {
+  if (globalSongsCache && Date.now() < globalSongsExpiresAt) {
+    return { ...globalSongsCache, cached: true };
+  }
+
+  if (globalSongsInFlight) return globalSongsInFlight;
+
+  globalSongsInFlight = (async () => {
+    const chartResults = await Promise.allSettled(
+      countries.map(async country => {
+        const cacheKey = `music-${country.code}`;
+        let chart = getCached(cacheKey);
+
+        if (!chart) {
+          const url = `https://rss.marketingtools.apple.com/api/v2/${country.code.toLowerCase()}/music/most-played/25/songs.json`;
+          const data = await fetchJSON(url);
+          const results = data.feed?.results || [];
+
+          if (!results.length) {
+            throw new Error(`No chart available for ${country.name}`);
+          }
+
+          const songs = results.map((song, index) => ({
+            rank: index + 1,
+            id: song.id || "",
+            title: song.name || "Unknown song",
+            artist: song.artistName || "Unknown artist",
+            album: song.collectionName || "",
+            artwork: song.artworkUrl100 || "",
+            url: song.url || "",
+            releaseDate: song.releaseDate || "",
+            genres: (song.genres || []).map(g => g.name)
+          }));
+
+          chart = {
+            country: country.name,
+            source: "Apple Music",
+            chart: "Top 25 Most Played Songs",
+            updatedAt: new Date().toISOString(),
+            total: songs.length,
+            configured: true,
+            songs,
+            videos: songs
+          };
+
+          setCached(cacheKey, chart, 30);
+        }
+
+        return { country, songs: chart.songs || [] };
+      })
+    );
+
+    const songMap = new Map();
+    const availableCountries = [];
+    const unavailableCountries = [];
+
+    chartResults.forEach((result, index) => {
+      const country = countries[index];
+
+      if (result.status !== "fulfilled" || !result.value.songs.length) {
+        unavailableCountries.push({
+          code: country.code,
+          name: country.name
+        });
+        return;
+      }
+
+      availableCountries.push({
+        code: country.code,
+        name: country.name
+      });
+
+      result.value.songs.forEach((song, songIndex) => {
+        const title = String(song.title || "").trim();
+        const artist = String(song.artist || "").trim();
+        if (!title) return;
+
+        const key = `${title}|${artist}`.toLocaleLowerCase();
+        if (!songMap.has(key)) {
+          songMap.set(key, {
+            title,
+            artist,
+            artwork: song.artwork || "",
+            url: song.url || "",
+            points: 0,
+            countries: [],
+            ranks: []
+          });
+        }
+
+        const entry = songMap.get(key);
+        const rank = Number(song.rank || songIndex + 1);
+
+        if (!entry.countries.some(item => item.code === country.code)) {
+          entry.points += Math.max(0, 26 - rank);
+          entry.countries.push({
+            code: country.code,
+            name: country.name,
+            rank
+          });
+          entry.ranks.push(rank);
+          if (!entry.artwork && song.artwork) entry.artwork = song.artwork;
+          if (!entry.url && song.url) entry.url = song.url;
+        }
+      });
+    });
+
+    const songs = Array.from(songMap.values())
+      .map(song => ({
+        ...song,
+        countriesCount: song.countries.length,
+        averageChartPosition: song.ranks.reduce((sum, rank) => sum + rank, 0) / song.ranks.length
+      }))
+      .sort((a, b) =>
+        b.points - a.points ||
+        b.countriesCount - a.countriesCount ||
+        a.averageChartPosition - b.averageChartPosition
+      )
+      .slice(0, 25)
+      .map((song, index) => ({
+        rank: index + 1,
+        ...song
+      }));
+
+    const result = {
+      source: "Apple Music country charts",
+      method: "Points per chart: rank 1 = 25 points, rank 25 = 1 point. Points are added across available country charts.",
+      metric: "Chart-position points only; not streams, sales, or social-media popularity.",
+      updatedAt: new Date().toISOString(),
+      countriesChecked: countries.length,
+      countriesAvailable: availableCountries,
+      countriesUnavailable: unavailableCountries,
+      total: songs.length,
+      songs
+    };
+
+    globalSongsCache = result;
+    globalSongsExpiresAt = Date.now() + 30 * 60 * 1000;
+    return { ...result, cached: false };
+  })();
+
+  try {
+    return await globalSongsInFlight;
+  } finally {
+    globalSongsInFlight = null;
+  }
+}
+
+// GLOBAL TOP SONGS API
+app.get("/api/global-top-songs", async (req, res) => {
+  try {
+    const data = await getGlobalTopSongs();
+    res.json(data);
+  } catch (error) {
+    console.error("Global Top Songs error:", error.message);
+    res.status(502).json({
+      error: "Global Top Songs service is temporarily unavailable.",
       details: error.message,
       songs: []
     });
